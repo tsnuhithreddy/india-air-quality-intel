@@ -28,3 +28,7 @@ Thumbs.db
 # IDE settings
 .vscode/
 .idea/
+
+sql/create_loader_user.sql
+# Legacy database modules
+src/database/

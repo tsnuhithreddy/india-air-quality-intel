@@ -18,7 +18,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.append(os.path.join(PROJECT_ROOT, "src", "utils"))
 sys.path.append(os.path.join(PROJECT_ROOT, "config"))
 
-from secrets_loader import DATA_GOV_IN_API_KEY
+from secrets_loader import DATA_GOV_IN_API_KEY, redact_secrets
 from logger import get_logger
 import config
 
@@ -43,7 +43,7 @@ def fetch_snapshot():
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        log.error(f"API request failed: {e}")
+        log.error(f"API request failed: {redact_secrets(str(e))}")
         return None
 
     data = response.json()
