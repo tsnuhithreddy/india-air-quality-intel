@@ -142,4 +142,3 @@ The final system is intended to move beyond descriptive reporting toward an earl
 
 ---
 
-**Status:** Work in progress · Built as an end-to-end data engineering and analytics portfolio project
