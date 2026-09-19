@@ -1,14 +1,8 @@
-\# Data Sources Log
-
-
+# Data Sources Log
 
 Tracks when each data source was acquired/first tested, for reproducibility.
 
-
-
-\## Live API Sources
-
-
+## Live API Sources
 
 | Source | First successful pull | Notes |
 |---|---|---|
@@ -22,11 +16,9 @@ Tracks when each data source was acquired/first tested, for reproducibility.
 |---|---|---|
 | Kaggle "Air Quality Data in India" (2015-2020) | 2026-08-25 | Verified 5 CSV files, 26 cities (Pune missing). Verified via src/ingestion/verify_kaggle_data.py. |
 
+## Known Source-Specific Quirks
 
-
-\## Known Source-Specific Quirks
-
-\- data.gov.in silently times out (no error, just hangs) if the request doesn't include a browser-like `User-Agent` header. Fixed permanently in `fetch\_data\_gov\_in.py`.
+- data.gov.in silently times out (no error, just hangs) if the request doesn't include a browser-like `User-Agent` header. Fixed permanently in `fetch_data_gov_in.py`.
 
 ## OpenAQ v3 API
 - **First tested successfully:** 2026-08-25
@@ -73,6 +65,51 @@ Tracks when each data source was acquired/first tested, for reproducibility.
   Phase 3 (Aug 2026 onward).
 - City name spellings match target list exactly where present
   (e.g. "Bengaluru" not "Bangalore") — no renaming needed for future joins.
+- **Refined during Phase 6:** Pune's absence is more precise than "not
+  included" — Pune actually IS listed once in `stations.csv` (station
+  metadata exists), but that single station has zero rows in
+  `station_day.csv`. Same practical gap, more precisely understood root
+  cause.
+- **Refined during Phase 6:** used `station_day.csv` + `stations.csv`
+  only, not all 5 files — station-level (not city-aggregated) to match
+  the rest of the project's schema, daily (not hourly) since this
+  dataset's role is a historical trend baseline, not a second live feed.
+- **Discovered during Phase 6:** 3 real pollutants — Benzene, Toluene,
+  Xylene (VOCs) — appear in this dataset's columns but were never
+  reported by data.gov.in or OpenAQ, so had never been tracked before.
+  Added to `dim_pollutant` rather than dropped, since they're genuinely
+  real pollution data.
+- **Discovered during Phase 6:** this dataset appears to have already
+  been cleaned by its original curator, unlike the live government/OpenAQ
+  feeds. Verified rather than assumed — 0% of 1.14M cleaned rows flagged
+  suspicious was investigated (checked real min/max values and how often
+  the suspicious round number 1000 appeared — exactly once, consistent
+  with a genuine pollution spike, not an artificial data cap) before
+  being trusted.
+- **Discovered during Phase 7 (dashboard build), re-confirmed independently
+  in Phase 8:** one station — Maninagar, Ahmedabad - GPCB (source key
+  `GJ001`) — has internally inconsistent precomputed AQI values (avg
+  683.79, max 2049 on a defined 0-500 scale) that don't reconcile against
+  its own underlying pollutant concentrations. Treated as a likely
+  data-quality artifact in the original Kaggle source, not confirmed
+  extreme pollution. Excluded entirely from Phase 9's anomaly baseline
+  and Phase 10's forecasting panel, since Ahmedabad has only this one
+  Kaggle station.
+- **Discovered during Phase 8:** Mumbai's sole "stable panel" station
+  reports a row on schedule every day for 2015-2017, but 100% of those
+  rows are blank — a different failure mode from Ahmedabad's (real-but-
+  invalid values vs. no usable data at all). Real, usable Mumbai history
+  only begins in 2018.
+- **Discovered during Phase 8:** station coverage grew substantially
+  over 2015-2020 (most sharply 2018-2019), most visibly in Delhi (10
+  stations in 2015 -> 38 from 2018 onward). A naive city-level yearly
+  average partly reflects which parts of a city were being monitored
+  that year, not purely how pollution changed.
+- **Refined during Phase 10:** Lucknow's documented "March-May 2018"
+  data-quality gap is actually 2018-02-15 to 2018-06-12 (118 days) — the
+  real gap starts 6.5 weeks earlier and ends ~2 weeks later than
+  originally labeled. Confirmed as one clean contiguous block, verified
+  directly against the database rather than trusting the earlier label.
 
 ## Scheduling — data.gov.in hourly poll
 - Task Scheduler task created 2026-08-25, confirmed running hourly and unattended
@@ -269,3 +306,41 @@ date. Not a bug; scheduling the cleaning step is future work.
 All counts cross-verified against the loader scripts' own logged
 summaries and independently via `SELECT COUNT(*)` in MySQL Workbench —
 not trusted from script output alone.
+
+## Standalone SQL Analysis Layer (Phase 5, alongside the loaders)
+
+**Why this was built:** loading data into MySQL isn't the same as being
+able to answer real questions with it. Once the three live-source
+loaders were working and verified, a committed set of analytical
+queries was written directly against the schema — not just the one-off
+`SELECT COUNT(*)` checks used to verify the loaders.
+
+**`sql/analysis.sql`** — 7 committed, commented queries covering
+aggregation, multi-table joins, window functions (`RANK()`, a rolling
+3-hour temperature average), correlated and non-correlated subqueries,
+and a `UNION ALL` combining both live pollution sources into one
+cross-source data-quality view. Each query's comment states the real
+question it answers.
+
+**A real bug hit and fixed while writing this file:** a station-level
+"reads worse than its own city's average" query (correlated subquery)
+initially failed with `Error 1054: Unknown column
+'india_air_quality.s.city_id'`, due to MySQL's `ONLY_FULL_GROUP_BY`
+mode — the correlated subquery referenced `s.city_id`, which wasn't
+listed in the outer query's `GROUP BY`. Fixed by adding it to the
+`GROUP BY` list.
+
+**A second, later bug found and fixed (post-Phase-11 housekeeping):**
+the query comparing live pollution against live weather originally
+joined only on `city_id`, with no time alignment at all. This worked
+by accident while `fact_weather_observations` still had just one row
+per city, but would have silently become a cross join (every pollution
+reading paired with every weather row ever recorded for that city) as
+soon as more hourly weather data accumulated. Fixed to match on the
+same real hour on both sides, not just the same city.
+
+**Scope note:** at this point in the project, only the four live-source
+fact tables exist (`fact_cpcb_subindex`, `fact_openaq_concentration`,
+`fact_weather_observations`, `fact_weather_forecast`) — Kaggle's
+historical data has not been loaded into MySQL yet (that's Phase 6), so
+none of these queries reference it.

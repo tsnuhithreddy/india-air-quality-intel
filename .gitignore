@@ -32,3 +32,13 @@ Thumbs.db
 sql/create_loader_user.sql
 # Legacy database modules
 src/database/
+
+files/PHASE*.md
+
+inspect_kaggle.py
+
+inspect_kaggle.py
+
+sql/anomalies.sql
+
+sql/anomalies.sql
