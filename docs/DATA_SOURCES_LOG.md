@@ -344,3 +344,42 @@ fact tables exist (`fact_cpcb_subindex`, `fact_openaq_concentration`,
 `fact_weather_observations`, `fact_weather_forecast`) — Kaggle's
 historical data has not been loaded into MySQL yet (that's Phase 6), so
 none of these queries reference it.
+
+---
+
+# Post-Phase-11 Operational Finding — Pipeline Staleness Incident
+
+**Found:** during a Phase 12 planning review, ~2026-09-20
+**Symptom:** the Power BI dashboard's "Hours Since Last Update" KPI
+(Overview page) read 595 hours (~25 days) stale.
+**Diagnosis, checked rather than assumed:** confirmed via Task
+Scheduler status and real raw-file timestamps that all 3 ingestion
+tasks (data.gov.in, OpenAQ, Open-Meteo) had continued running
+automatically and correctly the entire time — the same automation
+proven working since Phase 3 had not broken. The actual break was in
+the cleaning + MySQL-loading step, which has been manual since Phase 5
+and simply hadn't been run by hand in several weeks.
+**Fix:** re-ran the three cleaning scripts and reloaded into MySQL by
+hand. Verified via `SELECT MAX(timestamp_local)` returning current
+timestamps across `fact_cpcb_subindex`, `fact_openaq_concentration`,
+and `fact_weather_observations`, and a refreshed dashboard KPI —
+not just assumed fixed because the scripts ran without error.
+**Why this matters going forward:** this is the concrete, lived proof
+that the ingestion/loading automation gap — open since Phase 5,
+repeatedly deferred through Phases 7-11 as a "nice to have" — is a
+real, recurring operational risk, not a theoretical one. It directly
+motivated making loader automation an actual Phase 12 deliverable
+rather than deferring it again.
+
+#Phase 12.1- loader automation
+
+## OpenAQ 20-station sample - staleness, corrected assessment (2026-09-22)
+Initial check (2026-09-21) showed fact_openaq_concentration stuck at
+2026-09-17 - looked like a permanently dead sample. Re-checked 2026-09-22:
+table had advanced to 2026-09-21 21:00 (+40 rows), showing the sample was
+still receiving occasional new readings, not permanently stalled. The
+subsequent staleness observed today is fully explained by a ~6h ingestion
+gap (machine asleep/logged off) affecting data.gov.in identically in the
+same window - not a distinct OpenAQ-specific issue. Revising earlier
+conclusion: no separate action needed on SAMPLE_STATION_COUNT for now;
+continue monitoring via run_clean_and_load.py's freshness checks.
