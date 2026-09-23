@@ -4,7 +4,7 @@ An end-to-end data engineering and analytics project for collecting, cleaning, s
 
 ## Project Status
 
-✅ **Core pipeline, analytics, and early-warning layers complete**
+✅ **Core pipeline, analytics, and early-warning layers complete** 
 
 Ingestion, cleaning, and MySQL storage are built and automated for all four data sources. Exploratory analysis, anomaly detection, short-term forecasting, and a rule-based early-warning system have all been built, verified against real data, and are documented below. Automated loading, live-source scoring, and web-published dashboarding remain open extensions (see Roadmap).
 
