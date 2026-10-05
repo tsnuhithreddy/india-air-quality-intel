@@ -59,7 +59,7 @@ Downstream analysis layers each work from a validated subset of these 11, for do
                                                         ┌──────────────────┬──────────────────────────┼──────────────────────────┐
                                                         ▼                  ▼                          ▼                          ▼
                                                   Power BI Dashboard   Jupyter EDA          Anomaly Detection          Forecasting + Early Warning
-                                                  (4 pages)            (seasonality,        (median/MAD per city/     (Ridge/persistence router,
+                                                  (5 pages)            (seasonality,        (median/MAD per city/     (Ridge/persistence router,
                                                                         weather effects)     month, 2.68% flagged)     fact_early_warnings)
 ```
 
