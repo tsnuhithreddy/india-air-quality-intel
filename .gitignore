@@ -45,3 +45,5 @@ sql/anomalies.sql
 
 files/
 *.log
+
+!.env.example
