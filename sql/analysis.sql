@@ -1,15 +1,10 @@
--- sql/analysis_queries.sql
--- Ad-hoc analytical queries against the live schema, written once the
--- three live-source loaders were working (Phase 5). Only uses tables
--- that existed at that point — dim_city, dim_pollutant, dim_station,
--- fact_cpcb_subindex, fact_openaq_concentration, fact_weather_observations,
--- fact_weather_forecast. Kaggle historical tables came later in Phase 6.
+-- analysis.sql
+-- Ad-hoc queries against the live tables. Uses only the live-source tables,
+-- not the Kaggle ones.
 
 USE india_air_quality;
 
--- Which pollutant is actually driving each city's AQI, on average?
--- A city-wide sub-index number hides this — useful if an alert should
--- name a specific pollutant rather than just say "air quality is bad".
+-- Which pollutant drives each city's AQI on average
 SELECT
     c.city_name,
     p.pollutant_code,
@@ -24,10 +19,7 @@ GROUP BY c.city_name, p.pollutant_code
 ORDER BY c.city_name, avg_sub_index DESC;
 
 
--- For each pollutant, which OpenAQ station reports the highest average
--- real concentration? Ranked per pollutant rather than per city, since
--- dim_station.city_id is left NULL for OpenAQ stations — OpenAQ's data
--- never tells us which of our target cities a station actually belongs to.
+-- Worst OpenAQ station for each pollutant (ranked per pollutant, since OpenAQ stations have no city)
 SELECT pollutant_code, station_name, avg_concentration, pollutant_rank
 FROM (
     SELECT
@@ -48,9 +40,7 @@ WHERE pollutant_rank = 1
 ORDER BY avg_concentration DESC;
 
 
--- Stations reading above the national average sub-index — a simple way
--- to flag which ones might be worth prioritizing, rather than eyeballing
--- a ranked list and guessing where the real cutoff is.
+-- Stations above the national average sub-index
 SELECT
     s.station_name,
     ROUND(AVG(f.sub_index_avg), 1) AS station_avg_sub_index
@@ -66,10 +56,7 @@ HAVING AVG(f.sub_index_avg) > (
 ORDER BY station_avg_sub_index DESC;
 
 
--- Same idea, but against each station's OWN city average instead of the
--- national one (correlated subquery). Catches the case where most
--- stations in a city are fine and just one is dragging the city average
--- up — a city-level number alone wouldn't show that.
+-- Stations above their own city's average (correlated subquery). Shows when one station is pulling a city up
 SELECT
     c.city_name,
     s.station_name,
@@ -89,13 +76,7 @@ HAVING AVG(f.sub_index_avg) > (
 ORDER BY station_avg_sub_index DESC;
 
 
--- Pollution vs. wind/rain, matched hour-for-hour rather than just by
--- city. An earlier version of this query joined only on city_id, which
--- worked by accident while fact_weather_observations still had just one
--- row per city — it would have started producing a cross join (every
--- pollution reading paired with every weather row ever recorded for that
--- city) as soon as more hourly weather data piled up. Matching on the
--- same hour fixes that properly.
+-- Pollution against wind and rain, matched on the same hour. Joining on city alone would cross-join as weather rows pile up.
 SELECT
     c.city_name,
     DATE_FORMAT(f.timestamp_local, '%Y-%m-%d %H:00:00') AS hour_bucket,
@@ -113,9 +94,7 @@ GROUP BY c.city_name, hour_bucket
 ORDER BY hour_bucket, avg_sub_index DESC;
 
 
--- Smoothed temperature forecast per city (3-hour moving average) from
--- the 24-hour Open-Meteo forecast. A single forecasted hour is noisy;
--- this shows the underlying trend across the day per city.
+-- 3-hour moving average of the temperature forecast per city
 SELECT
     c.city_name,
     wf.forecast_step_hour,
@@ -130,11 +109,7 @@ JOIN dim_city c ON wf.city_id = c.city_id
 ORDER BY c.city_name, wf.forecast_step_hour;
 
 
--- Which pollutant gets flagged suspicious most often, combining BOTH
--- live sources into one list. Data-quality flags were tracked
--- per-source since Phase 3/4, but never combined before into one view
--- of which pollutant is least reliably measured overall, regardless of
--- which source is reporting it.
+-- Share of suspicious readings per pollutant, both live sources combined
 SELECT
     pollutant_code,
     SUM(is_suspicious_flag) AS suspicious_count,
@@ -153,3 +128,26 @@ FROM (
 ) combined
 GROUP BY pollutant_code
 ORDER BY pct_suspicious DESC;
+
+-- Rows loaded per day from data.gov.in since polling started (gaps show outages)
+SELECT DATE(timestamp_local) AS day,
+       COUNT(DISTINCT HOUR(timestamp_local)) AS hours_covered,
+       COUNT(*) AS rows_loaded
+FROM fact_cpcb_subindex
+WHERE timestamp_local >= '2026-08-17'
+GROUP BY DATE(timestamp_local)
+ORDER BY day;
+
+
+-- Freshness check: newest timestamp and row count for each live table
+SELECT 'fact_cpcb_subindex' AS table_name, MAX(timestamp_local) AS latest_ts, COUNT(*) AS row_count
+FROM fact_cpcb_subindex
+UNION ALL
+SELECT 'fact_openaq_concentration', MAX(timestamp_local), COUNT(*)
+FROM fact_openaq_concentration
+UNION ALL
+SELECT 'fact_weather_observations', MAX(timestamp_local), COUNT(*)
+FROM fact_weather_observations
+UNION ALL
+SELECT 'fact_weather_forecast', MAX(forecast_timestamp_local), COUNT(*)
+FROM fact_weather_forecast;
