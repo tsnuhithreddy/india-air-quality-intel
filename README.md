@@ -4,9 +4,11 @@ An end-to-end data engineering and analytics project for collecting, cleaning, s
 
 ## Project Status
 
-✅ **Core pipeline, analytics, and early-warning layers complete** 
+**Core pipeline, analytics, and early-warning layers complete.**
 
-Ingestion, cleaning, and MySQL storage are built and automated for all four data sources. Exploratory analysis, anomaly detection, short-term forecasting, and a rule-based early-warning system have all been built, verified against real data, and are documented below. Automated loading, live-source scoring, and web-published dashboarding remain open extensions (see Roadmap).
+Ingestion, cleaning, and MySQL storage are built for all four data sources, and automated for the three live ones. Exploratory analysis, anomaly detection, short-term forecasting, and a rule-based early-warning system have all been built, verified against real data, and are documented below. Live-source scoring, a notification layer, and web-published dashboarding remain possible extensions (see below).
+
+As of October 2026 the data.gov.in API has been unreachable since 25 September (see `docs/DATA_SOURCES_LOG.md`), so the live data.gov.in feed is stale until it recovers.
 
 ## Objective
 
@@ -33,7 +35,7 @@ OpenAQ v3 is used as a secondary source for air-quality observations and cross-v
 
 ### Open-Meteo
 
-Open-Meteo provides supporting meteorological information, pulled hourly for live/forecast data and separately via its Archive API for historical analysis. Confirmed to have a real, direct relationship with AQI (wind speed) alongside a partly confounded one (temperature — its strong full-year correlation is substantially seasonal).
+Open-Meteo provides supporting meteorological information, pulled hourly for live/forecast data and separately via its Archive API for historical analysis. For Delhi, wind speed has a real, direct relationship with AQI, while temperature's strong full-year correlation is substantially seasonal.
 
 ### Kaggle Historical Dataset
 
@@ -68,7 +70,9 @@ Downstream analysis layers each work from a validated subset of these 11, for do
 - **Language:** Python
 - **Database:** MySQL
 - **Data & Analysis:** Pandas, NumPy, scikit-learn, statsmodels
-- **Visualization:** Matplotlib, Seaborn
+- **Ingestion & Config:** requests, python-dotenv
+- **Database access:** mysql-connector-python, SQLAlchemy
+- **Visualization:** Matplotlib, Seaborn, JupyterLab
 - **BI:** Power BI
 - **APIs:** data.gov.in/CPCB, OpenAQ, Open-Meteo
 - **Automation:** Windows Task Scheduler
@@ -81,8 +85,10 @@ india-air-quality-intel/
 ├── config/              # Project configuration
 ├── data/                # Local raw, processed, and external data (not committed)
 ├── dashboard/           # Power BI (.pbix) dashboard file
-├── docs/                # Data source log and other project documentation
-├── files/               # Project state tracking (phase-by-phase working notes kept locally)
+├── docs/
+│   ├── phases/          # Phase-by-phase documentation (Phase 1 to 12)
+│   ├── DATA_SOURCES_LOG.md
+│   └── EXECUTIVE_INSIGHTS_REPORT.md
 ├── logs/                # Local pipeline logs
 ├── notebooks/           # EDA, anomaly detection, forecasting, and early-warning notebooks
 ├── scripts/             # Task Scheduler launcher scripts
@@ -104,7 +110,7 @@ india-air-quality-intel/
 - **Source separation:** observations from different providers retain their source-specific meaning — sub-index scores and physical concentrations are never merged into one column.
 - **Relational storage:** MySQL provides structured dimensions, facts, keys, and constraints for downstream analysis, with a real least-privilege database user for all loaders.
 - **Flag, don't drop:** bad or missing values get boolean flag columns rather than being deleted, preserving the ability to make an informed decision downstream.
-- **Validation before analysis:** every real finding in this project — a date-range correction, a data-quality gap, a model result — was checked against real evidence before being trusted, not assumed from documentation or a clean-looking output.
+- **Validation before analysis:** findings in this project — a date-range correction, a data-quality gap, a model result — were checked against real evidence before being trusted, not assumed from documentation or a clean-looking output.
 - **Robust statistics over classical decomposition for anomaly detection:** median/MAD per city per calendar month, chosen specifically to avoid distortion from a single already-known bad station and to handle real data gaps without added complexity.
 - **Baselines before models:** a naive "tomorrow = today" forecast was proven surprisingly strong before any regression model was built, setting a real, honest bar to beat rather than reporting model accuracy in isolation.
 - **Explicit reliability labeling in the early-warning layer:** forecast trust level is reported per city, based on real backtested recall — not presented as uniformly confident across cities with very different amounts of supporting evidence.
@@ -123,17 +129,22 @@ india-air-quality-intel/
 - [x] Build and load a seasonal-baseline anomaly detector
 - [x] Build and evaluate short-term (1-day/3-day) AQI forecasting
 - [x] Build and load an early-warning system on top of validated forecasts
-- [ ] Automate the still-manual database loaders via Task Scheduler
-- [ ] Extend anomaly/warning scoring to live hourly sources
-- [ ] Add a real notification mechanism (the warning table is currently a queryable backtest record, not a live-firing system)
-- [ ] Publish the Power BI dashboard to the web
+- [x] Automate cleaning and loading of the live sources via Task Scheduler
+- [x] Document each phase and summarize findings in an executive report
+
+## Possible Extensions
+
+These are not part of the completed scope:
+
+- Score the live hourly sources with the anomaly and warning logic. This needs enough accumulated live history, and the data.gov.in feed is currently down.
+- Add a notification mechanism. The warning table is a queryable backtest record, not a live-firing system.
+- Publish the Power BI dashboard to the web. It currently exists only as a `.pbix` file.
+- Move polling to an always-on machine, since the hourly tasks only run while the laptop is on.
 
 ## Important Note on Data
 
 Raw and processed datasets are intentionally excluded from version control. API credentials and other secrets are also kept outside the repository.
 
-## Current Direction
+## Documentation
 
-With the original roadmap (EDA → Anomaly Detection → Forecasting → Early Warning System) complete end-to-end, the project's next phase is not yet fixed — realistic candidates include live-source scoring, a real notification layer on top of the existing warning table, loader automation, and dashboard publishing. See `files/PROJECT_STATE.md` for the full, current decision log.
-
----
+Phase-by-phase documentation is in `docs/phases/`, a summary of findings is in `docs/EXECUTIVE_INSIGHTS_REPORT.md`, and source-specific notes and incidents are in `docs/DATA_SOURCES_LOG.md`.
