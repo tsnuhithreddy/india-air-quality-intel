@@ -117,7 +117,7 @@ This station produced 25 of the 50 highest scores, similar to how GJ001 first sh
 | 2019 | 17 |
 | 2020 | 6 |
 
-The flags span five of six years and taper off, and the station's value range (8 to 727) is plausible. That fits a spike-prone location rather than a faulty sensor, so the station stays in the model.
+The flags appear in every year, heaviest in 2015 (49) and lowest in 2018 (2), and the station's value range (8 to 727) is plausible. That fits a spike-prone location rather than a faulty sensor, so the station stays in the model.
 
 ### Values above 500
 
@@ -194,7 +194,7 @@ The second load confirms the unique constraint prevents duplicates.
 - **Historical only:** scores are based on 2015 to mid-2020 data. Live data has not been scored yet.
 - **City-level baseline:** stations that differ structurally from their city (Chennai's Manali) are over-flagged. This is documented through `baseline_note` and not corrected.
 - **Seasonality assumed stable:** pooling all years assumes a city's seasonal pattern did not change over the period. Station networks grew substantially from 2015 to 2020 (Phase 8), which this approach does not adjust for.
-- **Known data gaps:** the 2017 gap (Delhi, Patna and others), Lucknow 2018 and Patna 2020 reduce the number of readings in affected months. They do not distort the baseline, but anomalies cannot be detected on missing days.
+- **Known data gaps:** the 2017 gap (Delhi, Patna and others), Lucknow 2018 and Patna 2020 reduce the number of readings in affected months. They should not distort the baseline much, but anomalies cannot be detected on missing days.
 - **Manual execution:** the script and loader are run by hand and are not scheduled.
 - **Loader warning:** `pandas` prints a `DtypeWarning` for the `baseline_note` column when reading the CSV. The load itself is unaffected, and the warning can be removed by passing `dtype` to `read_csv`.
 - **Schema file:** `sql/create_schema.sql` has not yet been updated with the new table. It was created directly in MySQL Workbench.
