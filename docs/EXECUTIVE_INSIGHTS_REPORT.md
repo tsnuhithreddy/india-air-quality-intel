@@ -2,7 +2,7 @@
 
 **India Urban Air Quality Intelligence & Early-Warning System**
 
-Last updated 10 October 2026. The live-pipeline status below is as of 9 October.
+Last updated 26 October 2026. The live-pipeline status below is as of that date.
 
 This is the short version of twelve phases of work. If you only read one document in this repo, read this one. The phase write-ups (PHASE1 to PHASE12) and `docs/DATA_SOURCES_LOG.md` have the detail behind every claim here.
 
@@ -12,9 +12,9 @@ This is the short version of twelve phases of work. If you only read one documen
 
 1. **Winter pollution is a northern problem.** Delhi, Lucknow and Patna swing by roughly three times between the monsoon and November. Chennai, Bengaluru and Hyderabad barely move all year.
 2. **One of my own early findings was wrong.** Delhi's sharp AQI spike in 2017 looked real. It was mostly a hole in the data that happened to fall in the cleanest months of the year.
-3. **Tomorrow's AQI is fairly easy to predict, but the worst days are not.** A model that predicts "tomorrow will look like today" is hard to beat. Where a model did beat it, the gain was modest. The more important finding is that average error hides how often the forecast misses a severe day.
+3. **A "tomorrow looks like today" forecast is hard to beat, and the worst days are the hardest to catch.** Where a model did beat it, the gain was modest. The more important finding is that average error hides how often the forecast misses a severe day.
 4. **For four of seven cities I can't say whether the early warnings work.** Their test window had no severe days at all, so there was nothing to catch.
-5. **The live pipeline works, but it depends on things I don't control.** The government API has been down since 25 September, and the pipeline only runs while my laptop is on.
+5. **The live pipeline works, but it depends on things I don't control.** The government API was down for about 17 days (25 September to 12 October), and the pipeline only runs while my laptop is on.
 
 ---
 
@@ -39,7 +39,7 @@ One thing shaped the design more than anything else. data.gov.in's numbers are A
 
 Delhi's average AQI peaks in November (about 388) and December (about 374) and bottoms out in August (about 135). That is a roughly 3x swing, which fits what's known about crop burning, winter inversions and monsoon washout.
 
-Lucknow and Patna follow the same shape. Chennai, Bengaluru and Hyderabad stay between roughly 80 and 150 all twelve months. Mumbai has a real but much weaker winter rise.
+Lucknow and Patna follow the same shape. Chennai, Bengaluru and Hyderabad stay between roughly 75 and 150 all twelve months. Mumbai has a real but much weaker winter rise.
 
 ### The 2017 spike that wasn't
 
@@ -64,7 +64,7 @@ I flagged unusual days using a baseline of the median and median absolute deviat
 Out of 74,826 usable readings, 2,002 were flagged (2.68%). Two cities stood out and I checked both:
 
 - **Chennai (7.8% flagged)** is high because one of its stations (Manali) sits in an industrial zone and is normally dirtier than the rest of the city. A city-wide baseline over-flags its ordinary days. That's a limit of working at city level, not bad data.
-- **Bengaluru's Kadabesanahalli station** produced many of the most extreme scores. Its flags were spread across five of six years and tapered off, so I kept it. It looks like a genuinely spike-prone location.
+- **Bengaluru's Kadabesanahalli station** produced many of the most extreme scores. Its flags were spread over several years and were heaviest early on (49 in 2015, 2 in 2018), so I kept it. It looks like a genuinely spike-prone location.
 
 I left one station out entirely: Maninagar in Ahmedabad (GJ001). Its AQI values go as high as 2,049 on a scale that stops at 500, and they don't match its own pollutant readings. It was Ahmedabad's only Kaggle station, so Ahmedabad drops out of the anomaly work, which covers 9 of 11 cities.
 
@@ -74,7 +74,7 @@ I left one station out entirely: Maninagar in Ahmedabad (GJ001). Its AQI values 
 
 ### How the forecasts did
 
-I built 1-day and 3-day forecasts for 7 cities and tested them on January to July 2020 (183 days) that the models never saw in training. The bar to beat was persistence, meaning "tomorrow equals today". It beat a seasonal-average baseline by 2 to 3 times in every city, so it's a hard bar.
+I built 1-day and 3-day forecasts for 7 cities and tested them on January to July 2020 (183 days) that the models never saw in training. The bar to beat was persistence, meaning "tomorrow equals today". It beat a seasonal-average baseline in every city, by about 1.3 to 3 times depending on the city, so it's a hard bar.
 
 A per-city Ridge regression (seasonal terms plus recent values) beat persistence in Bengaluru, Lucknow and Patna, tied in Chennai, and lost in Delhi, Hyderabad and Mumbai. The gains were small. In Patna the 1-day error went from 52.6 to 48.3. In Delhi, Ridge was slightly worse (43.8 against 41.4), and tuning didn't change that.
 
@@ -144,12 +144,13 @@ The live pipeline polls three APIs every hour through Windows Task Scheduler and
 
 **Earlier incident.** The dashboard's freshness figure reached 595 hours. Ingestion had kept running, but cleaning and loading were manual and nobody had run them for weeks. That's why `run_clean_and_load.py` exists. It treats a stale input file as a failure even if nothing crashes.
 
-**25 September to 9 October.** Four separate problems overlapped and looked like one:
+**25 September to 26 October.** Several separate problems overlapped and looked like one:
 
-1. **Task Scheduler settings.** The tasks were set to run only while I was logged on. Fixing it took a dedicated Windows account with administrator rights, since this Windows Home edition lacks the policy tool that would normally grant the right.
-2. **data.gov.in's API is unreachable.** The last good file is from 25 September. My network, DNS, proxy and firewall are fine. The main data.gov.in site and CPCB's own site connect normally, and only the API host fails. The error kept changing (refused, DNS failure, 502, timeout), which looks like an unstable server and not a credentials problem. It was still failing on 9 October.
-3. **A 12.6-hour gap across all three sources.** I first suspected sleep. The Windows event log showed I had shut the laptop down.
-4. **OpenAQ went quiet.** Its 20 sampled stations haven't reported anything newer than 7 October at 20:00. The loader is working and gets fresh files, but they contain nothing new. I suspect the cause is upstream, but I haven't confirmed it.
+1. **Task Scheduler settings.** The tasks were set to run only while I was logged on, and "run whether logged on or not" wouldn't save for my account. For a while they ran under a second Windows account with administrator rights, because this Windows Home edition lacks the policy tool that would normally grant the right. On 25 October I moved all four tasks back to my own account and deleted the extra one.
+2. **data.gov.in's API was unreachable for about 17 days.** The last good file is from 25 September, and the first successful fetch afterwards was on 12 October. My network, DNS, proxy and firewall were fine. The main data.gov.in site and CPCB's own site connected normally, and only the API host failed. The error kept changing (refused, DNS failure, 502, timeout), which looks like an unstable server and not a credentials problem. I never found out what changed. The database has no data.gov.in rows for 26 September to 11 October, and that gap isn't back-filled.
+3. **Gaps from the laptop being off.** The first one, 12.6 hours on 8 to 9 October, I put down to sleep. The Windows event log showed I had shut the laptop down. The same thing happened on 13 and 26 October. A stretch on 17 October, when all four tasks missed several hourly runs, I couldn't explain.
+4. **OpenAQ reported irregularly.** At one point its 20 sampled stations showed nothing newer than 7 October at 20:00, but readings dated 8, 10 and 12 October loaded afterwards, and the 8 October ones arrived about five days late. The loader worked throughout. I haven't established the cause.
+5. **Windows sometimes refused to start a task.** A few attempts returned error 0x800710E0 at off-schedule times. The scheduled runs worked around each one, and I haven't found the cause.
 
 Along the way I found two copies of the MySQL user and password in my `.env` file. That one mattered. The loaders only used the least-privilege account because it came second in the file. Reordering would have silently switched them to root. I deleted the root pair.
 
@@ -167,7 +168,9 @@ One reading note: the "Hours Since Last Update" figure on the Overview page trac
 - **Weather isn't in the forecasts.** I found wind matters but didn't use it as a feature.
 - **Forecasting lives in a notebook.** It has no script, scheduler or database table.
 - **The dashboard isn't published.** Publish to web returns an admin-permission error, so it only exists in Power BI Desktop.
-- **Polling needs the laptop on.** Any time it's off or asleep, hourly polls are lost.
+- **Polling needs the laptop on.** Any time it's off or asleep, hourly polls are lost, and I've shut it down overnight or in the evening on several days.
+- **The data has a hole.** `fact_cpcb_subindex` has no rows for 26 September to 11 October.
+- **I haven't tested the tasks while signed out.** They're set to run whether or not I'm logged on, but I only checked them while signed in.
 
 ---
 
