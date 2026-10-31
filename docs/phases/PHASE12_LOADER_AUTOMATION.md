@@ -2,7 +2,7 @@
 
 **Project:** India Urban Air Quality Intelligence & Early-Warning System
 **Status:** Complete, with open items listed at the end
-**Period:** 2026-09-20 to 2026-10-10
+**Period:** 2026-09-20 to 2026-10-26
 
 ## Contents
 
@@ -147,7 +147,7 @@ A later check showed the maximum timestamp had advanced to 2026-09-21 21:00 (40 
 
 # Part B: Dashboard completion, pipeline incident and housekeeping
 
-Part B covers the remaining Phase 12 work: a fifth Power BI page for the early-warning results, fixes to the existing pages, a two-week interruption of the live pipeline, and cleanup of the SQL files and repository.
+Part B covers the remaining Phase 12 work: a fifth Power BI page for the early-warning results, fixes to the existing pages, a multi-week interruption of the live pipeline, and cleanup of the SQL files, scheduled-task accounts and repository.
 
 ## B1. Power BI Page 5: Early Warning & Model Governance
 
@@ -248,35 +248,36 @@ With the slicer cleared, the page shows 144 triggered, 34 new episodes and 110 c
 
 `Hours Since Last Update` is unchanged. It is based on `Latest Data Timestamp = MAX(fact_cpcb_subindex[timestamp_local])`, so it measures data.gov.in only and does not reflect OpenAQ or Open-Meteo freshness. Per-source freshness measures have not been built.
 
+Several visuals on the Live Snapshot and Alerts pages (the severity donut, the active-alerts table, the alert matrix and the threshold histogram) count every row ever loaded and not only recent readings, so their totals grow with each load. Limiting them to recent days is listed under open items.
+
 The navigation button label `Early Warning&Model Governance` has no spaces around the ampersand and wraps onto two lines.
 
-## B3. Pipeline incident, 2026-09-25 to 2026-10-09
+## B3. Pipeline incident, 2026-09-25 to 2026-10-26
 
-The `Hours Since Last Update` card rose from 24 to 279 hours over about two weeks. Four separate problems contributed. The full record is in `docs/DATA_SOURCES_LOG.md`.
+The `Hours Since Last Update` card rose from 24 to 279 hours over about two weeks. Several separate problems contributed, and further interruptions followed after the data.gov.in feed recovered. The full record is in `docs/DATA_SOURCES_LOG.md`.
 
-### B3.1 Task Scheduler configuration (resolved)
+### B3.1 Task Scheduler configuration and accounts (resolved)
 
-The three ingestion tasks were set to "Run only when user is logged on". `LastTaskResult` was `0x800710E0` (not logged on) for the ingestion tasks and `0xC000013A` for the clean-and-load task. Changing a task to "Run whether user is logged on or not" failed with "One or more of the specified arguments are not valid."
+The three ingestion tasks were set to "Run only when user is logged on". `LastTaskResult` was `0x800710E0` for the ingestion tasks and `0xC000013A` for the clean-and-load task. Changing a task to "Run whether user is logged on or not" failed with "One or more of the specified arguments are not valid." Setting "Configure for" to Windows 10 did not help, and a blank account password was ruled out.
 
-Not effective: setting "Configure for" to Windows 10. A blank account password was also ruled out.
+Phase 3 saw the same message when saving "restart on failure" and "wake the computer to run". So the fault may have been saving any change to a task under that account, but this was not verified.
 
-Resolution:
+**First fix (temporary).** A local Windows account named `aqi_loader` was created and the tasks were set to run as that account. Windows then reported that the account needed the "Log on as a batch job" right. This is Windows Home, so `secpol.msc` is not installed and the "Backup Operators" group does not exist (`net localgroup` error 1376). Making `aqi_loader` an Administrator, which holds the right by default, let the tasks save, and `LastTaskResult` returned to `0x0`. The Windows account shared a name with the MySQL user `aqi_loader` but was unrelated to it.
 
-1. A local Windows account named `aqi_loader` was created and the tasks were set to run as that account. Windows then reported that the account needed the "Log on as a batch job" right.
-2. The environment is Windows Home. `secpol.msc` is not installed, and the "Backup Operators" group does not exist (`net localgroup` error 1376).
-3. The account was changed to an Administrator, which holds the right by default. After that the tasks saved and `LastTaskResult` returned to `0x0`.
+**Second fix (final).** The tasks were later moved back to the regular account:
 
-Notes:
+- `Get-LocalUser` showed `SNUHITH` is a local account (`PrincipalSource: Local`), not a Microsoft account.
+- `runas /user:SNUHITH cmd` returned error 1326 with the wrong password, and a later attempt to save a task returned "Task Scheduler cannot apply your changes: the user account is unknown, the password is incorrect, or the user account does not have permission to modify the task." Both are consistent with the wrong password being entered. The cause of the first "arguments not valid" error was not established.
+- With the correct Windows sign-in password, Open-Meteo was switched first and produced a scheduled file. The other three tasks followed one at a time on 2026-10-25.
+- All four tasks now run as `SNUHITH` with "Run whether user is logged on or not" (`LogonType: Password`). The Windows `aqi_loader` account was deleted on 2026-10-25. The MySQL user `aqi_loader` and `.env` were not affected, and clean-and-load runs after the deletion connected to the database without error.
 
-- The Windows account `aqi_loader` and the MySQL user `aqi_loader` are unrelated and share a name only.
-- The Windows account being an Administrator is broader than the task requires. It is a local account on a single-user machine running the project's own scripts.
-- The clean-and-load task reports `0x1` while any source is stale. This follows from the exit-code design in A3 and is not a separate fault.
+**Battery conditions.** `StopIfGoingOnBatteries` was `True` on all four tasks although the Conditions tab showed the box unticked. The box is greyed out while "Start the task only if the computer is on AC power" is off, but the stored value stays `True`. After the account switch, `Get-ScheduledTask` showed `Stop=False Disallow=False` on all four tasks.
 
-### B3.2 data.gov.in API unreachable (ongoing, external)
+### B3.2 data.gov.in API unreachable (resolved, cause unknown)
 
-The last successful raw file is `data_gov_in_20260925_0952.json`.
+The last good file before the outage is `data_gov_in_20260925_0952.json`.
 
-Connectivity checks from the host:
+Connectivity checks from the host during the outage:
 
 | Target | Result |
 |---|---|
@@ -284,9 +285,7 @@ Connectivity checks from the host:
 | `www.data.gov.in:443` | Connected |
 | `cpcb.nic.in:443` | Connected |
 
-The Windows proxy settings were off and no outbound firewall rule blocked the host. This limits the fault to the API host.
-
-The error returned by `fetch_data_gov_in.py` changed over time:
+The Windows proxy settings were off and no outbound firewall rule blocked the host, which limits the fault to the API host. The error returned by `fetch_data_gov_in.py` changed over time:
 
 | Date | Error |
 |---|---|
@@ -295,22 +294,39 @@ The error returned by `fetch_data_gov_in.py` changed over time:
 | 2026-10-06 01:47 | `502 Bad Gateway` |
 | 2026-10-06 06:27 | Read timeout (30 s) |
 | 2026-10-07 and 2026-10-09 | Connection refused |
+| 2026-10-12 20:56 | First successful fetch (full response, about 735 KB) |
 
-A connection-level failure occurs before the API key is evaluated, so it is not caused by credentials. The pattern is consistent with an unstable server. The endpoint was still failing on 2026-10-09 at 11:57. Whether the API endpoint or key policy has changed has not been checked.
+A connection-level failure occurs before the API key is evaluated, so the outage was not caused by credentials. The outage lasted about 17.5 days. A connection test also succeeded from the home network after recovery, so the failures were not specific to the other network used for some tests. The server-side cause is not known.
 
-### B3.3 All-source gap on 2026-10-08 to 2026-10-09 (cause identified)
+From 2026-10-13 the scheduled task wrote full responses again (for example `data_gov_in_20261013_2252.json`, written five seconds after the 22:52:17 trigger). `fact_cpcb_subindex` has no rows for 2026-09-26 to 2026-10-11, and the gap is not back-filled, because only the newest raw file is processed and the API has no history endpoint.
 
-At 11:45 on 2026-10-09 the stale-input check flagged all three sources. The newest OpenAQ and Open-Meteo raw files dated from about 23:10 on 2026-10-08, a gap of 12.6 hours.
+### B3.3 Interruptions caused by the laptop (not pipeline faults)
 
-The Kernel-Power events for 2026-10-08 showed only sleep intervals of 2 to 3 seconds, which does not explain the gap. A System log query for shutdown events returned event 1074 at 23:20:23 on 2026-10-08, showing that Explorer.EXE initiated a power-off for the user account. The machine was shut down until the next day.
+The stale-input check flagged all three sources at the same time on several occasions. Three independent APIs stalling together points at the host. System log events identified the cause for some of them:
 
-Task Scheduler history is disabled, so the scheduler log held no entries for the window.
+| When | What the logs show | Cause |
+|---|---|---|
+| 2026-10-08 23:20 to 2026-10-09 11:45 (12.6 h) | Event 1074 at 23:20:23; sleep intervals that day were 2 to 3 seconds | Laptop shut down |
+| 2026-10-13 17:21 to about 20:05 | Event 1074 at 17:21:11; scheduled runs at 17:06 and 17:10 also left no files | Laptop shut down; the earlier misses were not checked |
+| 2026-10-13 about 23:30 to 2026-10-14 09:31 | Stale at 09:38; newest raw files 23:26 to 23:27 | Laptop not running; cause not checked |
+| 2026-10-26 03:35 to about 12:59 | Event 1074 at 03:34:58 | Laptop shut down |
+| 2026-10-17 about 17:00 to 20:00 | All four tasks missed several hourly triggers; no Kernel-Power sleep events in the window | Cause not established |
 
-### B3.4 OpenAQ sample inactive (source side, not confirmed)
+The 2026-10-17 interruption also hit the three tasks that were still running as `aqi_loader`, so the account switch cannot explain it. The task counts are from raw file times: Open-Meteo missed 18:06 and 20:06, OpenAQ missed 18:11, data.gov.in missed 17:52, 18:52 and 19:52, and clean-and-load missed 17:38 and 18:38.
 
-`fact_openaq_concentration` held 359 rows with a maximum timestamp of 2026-10-02 14:00 on 2026-10-07, and 399 rows with a maximum of 2026-10-07 20:00 after the next load. Since then the loader has run against fresh raw files and inserted nothing (`inserted=0, skipped_duplicate=127`), because the 20 sampled stations have reported nothing newer. The processed file's newest rows were stamped 2026-10-07 20:00.
+Task Scheduler history was disabled during these events, so the scheduler log held nothing for these windows.
 
-The loader and its duplicate check are working. The likely cause is that OpenAQ's India data is relayed from CPCB, which is consistent with the data.gov.in outage, but this has not been verified.
+### B3.4 OpenAQ sample irregular (source side, cause not established)
+
+`fact_openaq_concentration` held 359 rows with a maximum timestamp of 2026-10-02 14:00 on 2026-10-07, and 399 rows with a maximum of 2026-10-07 20:00 after the next load. By 2026-10-13 it held 487 rows with readings dated 7, 8, 10 and 12 October (40, 40, 8 and 40 rows; none for 9 and 11 October).
+
+- The 20-station sample did not change: 20 unique station IDs appear across the October logs.
+- A search of the raw files for 8 October readings found them only in the two files fetched on 2026-10-13, about five days after their timestamps. The search pattern was a guess and covered only `openaq_latest_*` files, so this is indicative.
+- The loader and its duplicate check worked throughout. A fresh raw file with no new readings loads as `inserted=0, skipped_duplicate=127`.
+
+Whether OpenAQ publishes late, or the stations report in bursts, was not established. Readings missed while the laptop was off are lost, because only the newest reading per sensor is kept.
+
+OpenAQ logs `skipped_unknown_pollutant=20` on every run. These are the weather readings (temperature, humidity, wind) OpenAQ delivers through the pollutant field, excluded since Phase 5.
 
 ### B3.5 `.env` duplicate keys
 
@@ -321,22 +337,38 @@ The loader and its duplicate check are working. The likely cause is that OpenAQ'
 
 `python-dotenv` uses the last occurrence of a repeated key. The loaders were connecting as `aqi_loader` only because that block appeared second. Reordering the file would have switched every loader to `root` without an error and removed the least-privilege restriction from Phase 5. This is the same fault found in Phase 8 for the MySQL variables.
 
-### B3.6 Verification after the changes
+### B3.6 Task refusals (cause not established)
 
-`python -m src.loading.run_clean_and_load` was run on 2026-10-09 at 12:18 after the `.env` edit. All three sources loaded without database errors. Open-Meteo inserted 11 current-weather rows and overwrote 264 forecast rows, and the OpenAQ and Open-Meteo raw files were under an hour old. The run summary listed only data.gov.in as failed (stale raw input).
+Some task attempts returned `0x800710E0` (2147946720) and left no log line, so Windows refused the task before the script started:
 
-Freshness at that point:
-
-| Table | Max timestamp | Rows |
+| When | Task | Note |
 |---|---|---|
-| `fact_cpcb_subindex` | 2026-09-25 09:00 | 7,512 |
-| `fact_openaq_concentration` | 2026-10-07 20:00 | 399 |
-| `fact_weather_observations` | current | 770 (759 before the run, +11) |
-| `fact_weather_forecast` | current | 5,016 (overwritten, not appended) |
+| 2026-10-13 20:06 | clean-and-load | Off its xx:38 schedule; laptop had just come back on |
+| 2026-10-14 10:13 | clean-and-load | Off schedule; no log line at that time |
+| 2026-10-26 13:10:16 and 14:10:16 | data.gov.in | Off its xx:52:17 trigger |
 
-The row increase of 11 shows the duplicate constraints are intact. OpenAQ logs `skipped_unknown_pollutant=20` on every run. These are the weather readings OpenAQ delivers through the pollutant field, excluded since Phase 5.
+Scheduled runs worked around each refusal: clean-and-load returned `1` at 10:39 on 14 October (data.gov.in stale) and `run finished OK` at 13:51, 14:38 and 14:39; the data.gov.in task wrote a full file at 13:52:22 on 26 October. The failed attempts cost no data.
 
-Log output continued to show the data.gov.in API key as `***REDACTED***`.
+What was checked: the two tasks' battery settings were identical, each task has a single trigger, and the two ingestion tasks launch separate `.bat` files (`run_data_gov_in.bat`, `run_openaq.bat`). The earlier refusals each followed a power-on, but the 14 October case is not tight, and the cause remains unproven.
+
+The ingestion scripts exit `0` even when a fetch fails (for example the `getaddrinfo failed` DNS error at 20:11 on 2026-10-17), so a `0` result on an ingestion task shows only that the script ran. The raw files and the log are the reliable evidence.
+
+### B3.7 Verification
+
+`python -m src.loading.run_clean_and_load` was run on 2026-10-09 at 12:18 after the `.env` edit. All three sources loaded without database errors, Open-Meteo inserted 11 current-weather rows and overwrote 264 forecast rows, and the only failure in the summary was data.gov.in (stale raw input). A second load showed the duplicate constraints intact: `fact_weather_observations` went from 759 to 770 rows after a real run.
+
+After the data.gov.in recovery, a manual run at 10:31 on 2026-10-13 inserted 569 rows (`inserted=569, skipped_duplicate=0, skipped_unknown_city=1431`) and the dashboard's freshness card dropped to 1 hour.
+
+After the account switch, the scheduled runs on 2026-10-25 produced these files, at the following times and sizes:
+
+| Task | Trigger | File written | Size |
+|---|---|---|---|
+| Open-Meteo | xx:06:35 | 22:06:37 | 36,193 B |
+| OpenAQ | xx:10:58 | 22:11:12 and 22:12:03 | 1.3 MB and 55 KB |
+| data.gov.in | xx:52:17 | 22:52:23 | 735,525 B |
+| clean-and-load | xx:38:22 | `run finished OK` at 22:38:24 | n/a |
+
+A repeat check on 2026-10-26 found the same pattern at 13:06, 13:11, 13:38 and 13:52, and clean-and-load finished OK at 14:38 after the Windows account was deleted. The log continued to show the data.gov.in API key as `***REDACTED***`. The signed-out case was not tested.
 
 ## B4. SQL and repository housekeeping
 
@@ -367,6 +399,7 @@ Comments shortened, leading tabs and a duplicate `USE` removed, a typo in a colu
 
 - `docs/DATA_SOURCES_LOG.md`: incident entry added (114 lines, no deletions). A search of the file for password, key and token terms returned descriptions only, with no values.
 - `docs/EXECUTIVE_INSIGHTS_REPORT.md`: summary of findings across the project for readers who will not read the phase documents.
+- `docs/phases/`: phase documents 1 to 12, without the interview-style material of the earlier versions, which are kept locally and not committed.
 
 ---
 
@@ -381,30 +414,36 @@ Comments shortened, leading tabs and a duplicate `USE` removed, a typo in a colu
 | `sql/analysis.sql` | Comments and queries tidied |
 | `docs/DATA_SOURCES_LOG.md` | Staleness and OpenAQ findings (Part A), pipeline incident (Part B) |
 | `docs/EXECUTIVE_INSIGHTS_REPORT.md` | New |
+| `docs/phases/` | Phase documents 1 to 12 |
 | `PROJECT_STATE.md` | To be updated at the end of the phase |
 
 # Limitations
 
 - Only the newest raw file per source is processed on each run. Raw snapshots from before the automation, and any hour missed by ingestion, are not backfilled.
-- Polling and loading run only while the host is powered on and awake. Tasks now run whether or not a user is logged on (B3.1), but a shutdown or sleep still interrupts them, and interrupted runs are lost.
+- `fact_cpcb_subindex` has no rows for 2026-09-26 to 2026-10-11 (the API outage).
+- Polling and loading run only while the host is powered on and awake. The laptop has been shut down overnight or in the evening on several days (8, 13 and 26 October), leaving gaps in all three live sources, and interrupted runs are lost.
+- The scheduled tasks run as the regular `SNUHITH` account and store its password. If that password changes, each task must be re-saved with the new one.
+- Some task attempts are refused with `0x800710E0` at off-schedule times. Scheduled runs have succeeded around each, but the cause was not established.
+- An ingestion task's `LastTaskResult` of `0` does not show that a fetch succeeded.
 - Nothing is sent when a run fails. Failures are visible in the log, in the exit code and in Task Scheduler's last result.
 - A rerun against an already-loaded raw file inserts nothing. This is safe because of the duplicate constraints, but the log distinguishes it from a source that has stopped updating only through the three-hour stale-input check.
 - `Hours Since Last Update` measures data.gov.in only.
 - Page 5 is a retrospective view of the 2020 test window. It is not connected to live data.
-- Task Scheduler history is disabled, so gaps in scheduled runs are not recorded by the scheduler.
-- The Windows account used by the scheduled tasks is an Administrator.
+- Several live-page visuals count all loaded rows and not only recent ones.
+- Task Scheduler history was disabled during the incident, so gaps in scheduled runs are not recorded by the scheduler.
 
 # Open items
 
 | Item | Status |
 |---|---|
-| data.gov.in API | Unreachable as of 2026-10-09. The hourly task retries and will resume when the host responds. |
-| OpenAQ sample | No readings newer than 2026-10-07 20:00. Cause not confirmed. |
-| `.pbix` commit and PDF export | Waiting for data.gov.in to recover so the dashboard is refreshed first. |
+| Task refusals (`0x800710E0`) | Cause not established. Enable task history so the next refusal records a reason. |
+| OpenAQ sample | Reports irregularly, with readings arriving late. Cause not established. |
+| Signed-out test | Not run. Whether the tasks run while no user is signed in has not been verified. |
+| Recent-days filters on live visuals | Not yet applied (Live Snapshot donut and map; Alerts page) |
+| Refresh, PDF export and `.pbix` commit | Pending the filters above and a final refresh |
 | `create_schema.sql` rebuild check | Build the file into an empty database and compare columns with the live schema. Not yet run. |
 | `create_loader_user.template.sql` | Optional public template with a placeholder password. Not yet created. |
-| Task Scheduler history | Enable, so future gaps leave a record. |
-| Windows Update active hours | Set, but not confirmed as saved. |
-| Per-source freshness measures | Not built. |
-| Navigation button label | Add spaces around the ampersand. |
-| `PROJECT_STATE.md` | Update at the end of the phase, including the schema file now holding both derived tables and the incident summary. |
+| Windows Update active hours | Set, but not confirmed as saved |
+| Per-source freshness measures | Not built |
+| Navigation button label | Add spaces around the ampersand |
+| `PROJECT_STATE.md` | Update at the end of the phase, including the schema file now holding both derived tables and the incident summary |
