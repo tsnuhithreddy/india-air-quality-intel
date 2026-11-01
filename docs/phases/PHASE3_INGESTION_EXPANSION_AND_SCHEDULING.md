@@ -110,6 +110,8 @@ Tasks are configured as "Run only when user is logged on". If the machine sleeps
 
 Attempts to add "restart on failure" and "wake the computer to run" failed. The Task Scheduler dialog returned "One or more of the specified arguments are not valid" on save, and `Set-ScheduledTask` returned "The parameter is incorrect". These were not pursued. Because polling is hourly, a missed run means one missing snapshot.
 
+Update: the tasks were later switched to "Run whether user is logged on or not" (Phase 12, section B3.1). A shutdown or sleep still interrupts them.
+
 ## 5. API key redaction in logs
 
 `fetch_data_gov_in.py` sends the API key as a URL query parameter. When `requests` raises certain exceptions (for example a connection timeout), the exception text includes the full URL, so logging the exception wrote the key into the log file.
@@ -189,6 +191,6 @@ check_pipeline_health.py: on-demand verification of raw files and logs
 - data.gov.in has no historical endpoint. History starts from the first scheduled run (August 2026).
 - OpenAQ readings are collected for a fixed sample of 20 stations; some are registered but not reporting.
 - Kaggle data ends 2020-07-01 and does not include Pune.
-- Scheduled tasks only run while the user is logged on. Runs interrupted by sleep or logoff are lost.
+- Scheduled tasks only run while the machine is on. Runs interrupted by sleep, shutdown or logoff are lost. Since Phase 12 the tasks no longer need a logged-on user, but a shutdown still stops them.
 - Only data.gov.in has a cleaning script. OpenAQ and Open-Meteo raw files are being collected but not yet processed.
 - data.gov.in sub-index values and OpenAQ concentrations are different quantities and are not directly comparable.
