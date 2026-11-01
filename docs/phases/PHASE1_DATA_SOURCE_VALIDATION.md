@@ -19,7 +19,7 @@
 
 ## Supporting Data Sources
 - **Open-Meteo API** — weather/meteorological context (no key required, free, historical back to 1940, 16-day forecast)
-- **Kaggle "Air Quality Data in India" (CPCB-sourced, 2015–2024)** — one-time historical bootstrap dataset, not live
+- **Kaggle "Air Quality Data in India" (CPCB-sourced, 2015-01-01 to 2020-07-01)** — one-time historical bootstrap dataset, not live. The range was first recorded as 2015–2024, which was wrong. Corrected in Phase 3.
 - **CPCB CCR Portal (app.cpcbccr.com)** — manual-only historical backfill for specific stations, no stable API, not automated
 - **Population/city reference table** — static, manually curated from Census of India 2011; optional, only if exposure scoring is retained
 
@@ -34,7 +34,7 @@ All CPCB-linked stations across India; uneven density (Delhi-NCR dense, smaller 
 
 ## Historical Data Availability
 - Primary live API: **none** (current snapshot only)
-- Kaggle dataset: **yes**, 2015–2024, hourly/daily, 26+ cities
+- Kaggle dataset: **yes**, 2015-01-01 to 2020-07-01, hourly/daily, 26 cities (Pune is not among them)
 - CPCB CCR portal: yes, deep archive, but manual extraction only
 
 ## Current/Live Data Availability
@@ -56,7 +56,7 @@ Hourly (matches CPCB's own station reporting cadence)
 
 ## Important Limitations
 - Primary source has **no historical endpoint** — own historical dataset must be built via scheduled polling
-- Units are inconsistent across pollutants (µg/m³ for most; mg/m³ for CO) — must standardize during cleaning
+- data.gov.in values are AQI sub-index scores (0 to 500), not pollutant concentrations, and the raw response has no unit field. This was first documented as "units are inconsistent across pollutants (µg/m³ for most; mg/m³ for CO)", which was wrong. Found in Phase 3. OpenAQ's readings are real concentrations in µg/m³.
 - CPCB CCR historical downloads are capped (~1 week of 15-min data per station per pollutant per request)
 - OpenAQ India historical data has a multi-year gap (pre-2025 recovery) — not safe as sole ground truth
 
