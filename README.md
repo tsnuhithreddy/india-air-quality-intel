@@ -8,7 +8,6 @@ An end-to-end data engineering and analytics project for collecting, cleaning, s
 
 Ingestion, cleaning, and MySQL storage are built for all four data sources, and automated for the three live ones. Exploratory analysis, anomaly detection, short-term forecasting, and a rule-based early-warning system have all been built, verified against real data, and are documented below. Live-source scoring, a notification layer, and web-published dashboarding remain possible extensions (see below).
 
-As of October 2026 the data.gov.in API has been unreachable since 25 September (see `docs/DATA_SOURCES_LOG.md`), so the live data.gov.in feed is stale until it recovers.
 
 ## Objective
 
