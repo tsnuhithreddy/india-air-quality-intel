@@ -2,6 +2,7 @@
 
 **Project:** India Urban Air Quality Intelligence & Early-Warning System
 **Status:** Complete (4-page dashboard)
+**Note:** Page 5 (Early Warning & Model Governance) was added in Phase 12.  
 
 ---
 
@@ -15,8 +16,8 @@ Automating the cleaning and loading scripts was considered as the alternative di
 
 | Artifact | Description |
 |---|---|
-| `powerbi/india_air_quality_dashboard.pbix` | 4-page Power BI report |
-| `powerbi/AQI_Dashboard_Theme.json` | Custom report theme (palette, typography, visual styling) |
+| `dashboard/India Urban Air Quality Intelligence & Early-Warning System.pbix` | 4-page Power BI report |
+| Theme (embedded in the .pbix) | Custom report theme (palette, typography, visual styling). The standalone JSON file is not in the repo. |
 | `files/PHASE7_POWERBI_DASHBOARD.md` | This document |
 
 ## 3. Data Model
